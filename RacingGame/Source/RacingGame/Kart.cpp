@@ -24,6 +24,7 @@ void AKart::Tick(float DeltaTime)
 	Super::Tick(DeltaTime);
 
 	FVector Force = GetActorForwardVector() * MaxDrivingForce * Throttle;
+	Force += GetResistance();
 
 	FVector Acceleration = Force / Mass;
 
@@ -44,6 +45,11 @@ void AKart::ApplyRotation(float DeltaTime)
 	Velocity = RotationDelta.RotateVector(Velocity);
 
 	AddActorWorldRotation(RotationDelta);
+}
+
+FVector AKart::GetResistance()
+{
+	return (-Velocity.GetSafeNormal() * Velocity.SizeSquared() * DragCoefficient) ;
 }
 
 void AKart::UpdateLocationFromVelocity(float DeltaTime)

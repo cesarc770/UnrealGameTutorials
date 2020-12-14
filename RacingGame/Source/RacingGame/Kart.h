@@ -39,8 +39,14 @@ private:
 	UPROPERTY(EditAnywhere)
 	float MaxDegreesPerSecond = 90;
 
+	//Higher mean more drag
+	UPROPERTY(EditAnywhere)
+	float DragCoefficient = 16;
+
 	void MoveForward(float value);
 	void MoveRight(float value);
+
+	FVector GetResistance();
 	void UpdateLocationFromVelocity(float DeltaTime);
 	void ApplyRotation(float DeltaTime);
 

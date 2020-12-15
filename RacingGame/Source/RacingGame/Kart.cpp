@@ -20,14 +20,21 @@ AKart::AKart()
 void AKart::BeginPlay()
 {
 	Super::BeginPlay();
+
+	if (HasAuthority())
+	{
+		NetUpdateFrequency = 1;
+	}
 	
 }
 
 void AKart::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
 {
 	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
-	DOREPLIFETIME(AKart, ReplicatedLocation);
-	DOREPLIFETIME(AKart, ReplicatedRotation);
+	DOREPLIFETIME(AKart, ReplicatedTransform);
+	DOREPLIFETIME(AKart, Velocity);
+	DOREPLIFETIME(AKart, Throttle);
+	DOREPLIFETIME(AKart, SteeringThrow);
 }
 
 FString GetEnumText(ENetRole Role)
@@ -66,13 +73,7 @@ void AKart::Tick(float DeltaTime)
 
 	if (HasAuthority())
 	{
-		ReplicatedLocation = GetActorLocation();
-		ReplicatedRotation = GetActorRotation();
-	}
-	else
-	{
-		SetActorLocation(ReplicatedLocation);
-		SetActorRotation(ReplicatedRotation);
+		ReplicatedTransform = GetActorTransform();
 	}
 
 	DrawDebugString(GetWorld(), FVector(0, 0, 100), GetEnumText(GetLocalRole()), this, FColor::White, DeltaTime);
@@ -89,6 +90,11 @@ void AKart::ApplyRotation(float DeltaTime)
 	Velocity = RotationDelta.RotateVector(Velocity);
 
 	AddActorWorldRotation(RotationDelta);
+}
+
+void AKart::OnRep_ReplicatedTransform()
+{
+	SetActorTransform(ReplicatedTransform);
 }
 
 FVector AKart::GetAirResistance()

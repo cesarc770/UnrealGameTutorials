@@ -47,6 +47,9 @@ private:
 	UPROPERTY(EditAnywhere)
 	float RollingResistenceCoefficient = 0.015;
 
+	void MoveForward(float value);
+	void MoveRight(float value);
+
 	UFUNCTION(Server, Reliable, WithValidation)
 	void Server_MoveForward(float value);
 

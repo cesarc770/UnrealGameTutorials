@@ -2,7 +2,9 @@
 
 
 #include "Kart.h"
+#include "Components/InputComponent.h"
 #include "Engine/World.h"
+#include "DrawDebugHelpers.h"
 
 // Sets default values
 AKart::AKart()
@@ -17,6 +19,23 @@ void AKart::BeginPlay()
 {
 	Super::BeginPlay();
 	
+}
+
+FString GetEnumText(ENetRole Role)
+{
+	switch (Role)
+	{
+	case ROLE_None:
+		return "None";
+	case ROLE_SimulatedProxy:
+		return "SimulatedProxy";
+	case ROLE_AutonomousProxy:
+		return "AutonomousProxy";
+	case ROLE_Authority:
+		return "Authority";
+	default:
+		return "Error";
+	}
 }
 
 // Called every frame
@@ -35,6 +54,8 @@ void AKart::Tick(float DeltaTime)
 	ApplyRotation(DeltaTime);
 
 	UpdateLocationFromVelocity(DeltaTime);
+
+	DrawDebugString(GetWorld(), FVector(0, 0, 100), GetEnumText(GetLocalRole()), this, FColor::White, DeltaTime);
 
 }
 
@@ -79,8 +100,8 @@ void AKart::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
 {
 	Super::SetupPlayerInputComponent(PlayerInputComponent);
 
-	PlayerInputComponent->BindAxis("MoveForward", this, &AKart::Server_MoveForward);
-	PlayerInputComponent->BindAxis("MoveRight", this, &AKart::Server_MoveRight);
+	PlayerInputComponent->BindAxis("MoveForward", this, &AKart::MoveForward);
+	PlayerInputComponent->BindAxis("MoveRight", this, &AKart::MoveRight);
 
 }
 
@@ -89,6 +110,18 @@ void AKart::Server_MoveForward_Implementation(float value)
 	Throttle = value;
 }
 
+
+void AKart::MoveForward(float value)
+{
+	Throttle = value;
+	Server_MoveForward(value);
+}
+
+void AKart::MoveRight(float value)
+{
+	SteeringThrow = value;
+	Server_MoveRight(value);
+}
 
 bool AKart::Server_MoveForward_Validate(float value)
 {

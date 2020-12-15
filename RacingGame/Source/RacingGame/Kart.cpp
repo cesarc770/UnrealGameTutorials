@@ -2,6 +2,7 @@
 
 
 #include "Kart.h"
+#include "Engine/World.h"
 
 // Sets default values
 AKart::AKart()
@@ -24,7 +25,8 @@ void AKart::Tick(float DeltaTime)
 	Super::Tick(DeltaTime);
 
 	FVector Force = GetActorForwardVector() * MaxDrivingForce * Throttle;
-	Force += GetResistance();
+	Force += GetAirResistance();
+	Force += GetRollingResistance();
 
 	FVector Acceleration = Force / Mass;
 
@@ -38,18 +40,26 @@ void AKart::Tick(float DeltaTime)
 
 void AKart::ApplyRotation(float DeltaTime)
 {
-	float RotationAngle = MaxDegreesPerSecond * DeltaTime * SteeringThrow;
+	float DeltaLocation = FVector::DotProduct(GetActorForwardVector(), Velocity) * DeltaTime;
+	float RotationAngle = DeltaLocation / MinTurningRadius * SteeringThrow;
 
-	FQuat RotationDelta(GetActorUpVector(), FMath::DegreesToRadians(RotationAngle));
+	FQuat RotationDelta(GetActorUpVector(), RotationAngle);
 
 	Velocity = RotationDelta.RotateVector(Velocity);
 
 	AddActorWorldRotation(RotationDelta);
 }
 
-FVector AKart::GetResistance()
+FVector AKart::GetAirResistance()
 {
 	return (-Velocity.GetSafeNormal() * Velocity.SizeSquared() * DragCoefficient) ;
+}
+
+FVector AKart::GetRollingResistance()
+{
+	float AccelerationDueToGravity = -GetWorld()->GetGravityZ() / 100;
+	float NormalForce = Mass * AccelerationDueToGravity;
+	return (-Velocity.GetSafeNormal() * RollingResistenceCoefficient * NormalForce);
 }
 
 void AKart::UpdateLocationFromVelocity(float DeltaTime)

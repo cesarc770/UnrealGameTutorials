@@ -6,6 +6,39 @@
 #include "GameFramework/Pawn.h"
 #include "Kart.generated.h"
 
+USTRUCT()
+struct FKartMove
+{
+	GENERATED_USTRUCT_BODY()
+
+	UPROPERTY()
+	float Throttle;
+
+	UPROPERTY()
+	float SteeringThrow;
+
+	UPROPERTY()
+	float DeltaTime;
+
+	UPROPERTY()
+	float Time;
+};
+
+USTRUCT()
+struct FKartState
+{
+	GENERATED_USTRUCT_BODY()
+
+	UPROPERTY()
+	FTransform Transform;
+
+	UPROPERTY()
+	FVector Velocity;
+
+	UPROPERTY()
+	FKartMove LastMove;
+};
+
 UCLASS()
 class RACINGGAME_API AKart : public APawn
 {
@@ -51,34 +84,30 @@ private:
 	void MoveRight(float value);
 
 	UFUNCTION(Server, Reliable, WithValidation)
-	void Server_MoveForward(float value);
+	void Server_SendMove(FKartMove Move);
 
-	UFUNCTION(Server, Reliable, WithValidation)
-	void Server_MoveRight(float value);
+	bool Server_SendMove_Validate(FKartMove Move);
 
-	bool Server_MoveForward_Validate(float value);
-
-	bool Server_MoveRight_Validate(float value);
-
-
+	void SimulateMove(const FKartMove& Move);
+	FKartMove CreateMove(float DeltaTime);
+	void ClearAcknowledgedMoves(FKartMove LastMove);
 	FVector GetAirResistance();
 	FVector GetRollingResistance();
 	void UpdateLocationFromVelocity(float DeltaTime);
-	void ApplyRotation(float DeltaTime);
+	void ApplyRotation(float DeltaTime, float SteeringThrow);
 
-	UPROPERTY(Replicated)
-	FVector Velocity;
-
-	UPROPERTY(ReplicatedUsing=OnRep_ReplicatedTransform)
-	FTransform ReplicatedTransform;
+	UPROPERTY(ReplicatedUsing = OnRep_ServerState)
+	FKartState ServerState;
 
 	UFUNCTION()
-	void OnRep_ReplicatedTransform();
+	void OnRep_ServerState();
 
-	UPROPERTY(Replicated)
+
+	FVector Velocity;
+
 	float Throttle;
-
-	UPROPERTY(Replicated)
 	float SteeringThrow;
+
+	TArray<FKartMove> UnacknowledgeMoves;
 
 };

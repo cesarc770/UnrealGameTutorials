@@ -6,6 +6,7 @@
 #include "Engine/World.h"
 #include "DrawDebugHelpers.h"
 #include "Net/UnrealNetwork.h"
+#include "GameFramework/GameStateBase.h"
 
 // Sets default values
 AKart::AKart()
@@ -31,10 +32,7 @@ void AKart::BeginPlay()
 void AKart::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
 {
 	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
-	DOREPLIFETIME(AKart, ReplicatedTransform);
-	DOREPLIFETIME(AKart, Velocity);
-	DOREPLIFETIME(AKart, Throttle);
-	DOREPLIFETIME(AKart, SteeringThrow);
+	DOREPLIFETIME(AKart, ServerState);
 }
 
 FString GetEnumText(ENetRole Role)
@@ -59,42 +57,82 @@ void AKart::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
 
-	FVector Force = GetActorForwardVector() * MaxDrivingForce * Throttle;
-	Force += GetAirResistance();
-	Force += GetRollingResistance();
-
-	FVector Acceleration = Force / Mass;
-
-	Velocity = Velocity + Acceleration * DeltaTime;
-
-	ApplyRotation(DeltaTime);
-
-	UpdateLocationFromVelocity(DeltaTime);
-
-	if (HasAuthority())
+	if (GetLocalRole() == ROLE_AutonomousProxy)
 	{
-		ReplicatedTransform = GetActorTransform();
+		FKartMove Move = CreateMove(DeltaTime);
+		SimulateMove(Move);
+			
+		UnacknowledgeMoves.Add(Move);
+		Server_SendMove(Move);
 	}
+	if (GetLocalRole() == ROLE_Authority && IsLocallyControlled())
+	{
+		FKartMove Move = CreateMove(DeltaTime);
+		Server_SendMove(Move);
+	}
+
+	if (GetLocalRole() == ROLE_SimulatedProxy)
+	{
+		SimulateMove(ServerState.LastMove);
+	}
+
 
 	DrawDebugString(GetWorld(), FVector(0, 0, 100), GetEnumText(GetLocalRole()), this, FColor::White, DeltaTime);
 
 }
 
-void AKart::ApplyRotation(float DeltaTime)
+void AKart::OnRep_ServerState()
 {
-	float DeltaLocation = FVector::DotProduct(GetActorForwardVector(), Velocity) * DeltaTime;
-	float RotationAngle = DeltaLocation / MinTurningRadius * SteeringThrow;
+	SetActorTransform(ServerState.Transform);
+	Velocity = ServerState.Velocity;
 
-	FQuat RotationDelta(GetActorUpVector(), RotationAngle);
+	ClearAcknowledgedMoves(ServerState.LastMove);
 
-	Velocity = RotationDelta.RotateVector(Velocity);
-
-	AddActorWorldRotation(RotationDelta);
+	for (const FKartMove& Move : UnacknowledgeMoves)
+	{
+		SimulateMove(Move);
+	}
 }
 
-void AKart::OnRep_ReplicatedTransform()
+void AKart::SimulateMove(const FKartMove& Move)
 {
-	SetActorTransform(ReplicatedTransform);
+	FVector Force = GetActorForwardVector() * MaxDrivingForce * Move.Throttle;
+	Force += GetAirResistance();
+	Force += GetRollingResistance();
+
+	FVector Acceleration = Force / Mass;
+
+	Velocity = Velocity + Acceleration * Move.DeltaTime;
+
+	ApplyRotation(Move.DeltaTime, Move.SteeringThrow);
+
+	UpdateLocationFromVelocity(Move.DeltaTime);
+}
+
+FKartMove AKart::CreateMove(float DeltaTime)
+{
+	FKartMove Move;
+	Move.DeltaTime = DeltaTime;
+	Move.SteeringThrow = SteeringThrow;
+	Move.Throttle = Throttle;
+	Move.Time = GetWorld()->TimeSeconds;
+	//Move.Time = GetWorld()->GetGameState()->GetServerWorldTimeSeconds();
+
+	return Move;
+}
+void AKart::ClearAcknowledgedMoves(FKartMove LastMove)
+{
+	TArray<FKartMove> NewMoves;
+
+	for (const FKartMove& Move : UnacknowledgeMoves)
+	{
+		if (Move.Time > LastMove.Time)
+		{
+			NewMoves.Add(Move);
+		}
+	}
+
+	UnacknowledgeMoves = NewMoves;
 }
 
 FVector AKart::GetAirResistance()
@@ -107,6 +145,18 @@ FVector AKart::GetRollingResistance()
 	float AccelerationDueToGravity = -GetWorld()->GetGravityZ() / 100;
 	float NormalForce = Mass * AccelerationDueToGravity;
 	return (-Velocity.GetSafeNormal() * RollingResistenceCoefficient * NormalForce);
+}
+
+void AKart::ApplyRotation(float DeltaTime, float _SteeringThrow)
+{
+	float DeltaLocation = FVector::DotProduct(GetActorForwardVector(), Velocity) * DeltaTime;
+	float RotationAngle = DeltaLocation / MinTurningRadius * _SteeringThrow;
+
+	FQuat RotationDelta(GetActorUpVector(), RotationAngle);
+
+	Velocity = RotationDelta.RotateVector(Velocity);
+
+	AddActorWorldRotation(RotationDelta);
 }
 
 void AKart::UpdateLocationFromVelocity(float DeltaTime)
@@ -131,39 +181,33 @@ void AKart::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
 
 }
 
-void AKart::Server_MoveForward_Implementation(float value)
-{
-	Throttle = value;
-}
-
-
 void AKart::MoveForward(float value)
 {
 	Throttle = value;
-	Server_MoveForward(value);
 }
 
 void AKart::MoveRight(float value)
 {
 	SteeringThrow = value;
-	Server_MoveRight(value);
 }
 
-bool AKart::Server_MoveForward_Validate(float value)
+
+void AKart::Server_SendMove_Implementation(FKartMove Move)
 {
-	return FMath::Abs(value) <= 1;
+	SimulateMove(Move);
+
+	ServerState.LastMove = Move;
+	ServerState.Transform = GetActorTransform();
+	ServerState.Velocity = Velocity;
+
 }
 
-void AKart::Server_MoveRight_Implementation(float value)
+bool AKart::Server_SendMove_Validate(FKartMove Move)
 {
-	SteeringThrow = value;
+	return true;
 }
 
 
-bool AKart::Server_MoveRight_Validate(float value)
-{
-	return FMath::Abs(value) <= 1;
-}
 
 
 

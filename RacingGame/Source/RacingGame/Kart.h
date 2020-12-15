@@ -47,8 +47,16 @@ private:
 	UPROPERTY(EditAnywhere)
 	float RollingResistenceCoefficient = 0.015;
 
-	void MoveForward(float value);
-	void MoveRight(float value);
+	UFUNCTION(Server, Reliable, WithValidation)
+	void Server_MoveForward(float value);
+
+	UFUNCTION(Server, Reliable, WithValidation)
+	void Server_MoveRight(float value);
+
+	bool Server_MoveForward_Validate(float value);
+
+	bool Server_MoveRight_Validate(float value);
+
 
 	FVector GetAirResistance();
 	FVector GetRollingResistance();

@@ -79,19 +79,31 @@ void AKart::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
 {
 	Super::SetupPlayerInputComponent(PlayerInputComponent);
 
-	PlayerInputComponent->BindAxis("MoveForward", this, &AKart::MoveForward);
-	PlayerInputComponent->BindAxis("MoveRight", this, &AKart::MoveRight);
+	PlayerInputComponent->BindAxis("MoveForward", this, &AKart::Server_MoveForward);
+	PlayerInputComponent->BindAxis("MoveRight", this, &AKart::Server_MoveRight);
 
 }
 
-void AKart::MoveForward(float value)
+void AKart::Server_MoveForward_Implementation(float value)
 {
 	Throttle = value;
 }
 
-void AKart::MoveRight(float value)
+
+bool AKart::Server_MoveForward_Validate(float value)
+{
+	return FMath::Abs(value) <= 1;
+}
+
+void AKart::Server_MoveRight_Implementation(float value)
 {
 	SteeringThrow = value;
+}
+
+
+bool AKart::Server_MoveRight_Validate(float value)
+{
+	return FMath::Abs(value) <= 1;
 }
 
 

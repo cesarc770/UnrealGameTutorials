@@ -15,6 +15,8 @@ AKart::AKart()
 	PrimaryActorTick.bCanEverTick = true;
 	bReplicates = true;
 
+	MovementComponent = CreateDefaultSubobject<UKartMovementComponent>(TEXT("MovementComponent"));
+
 }
 
 // Called when the game starts or when spawned
@@ -57,23 +59,25 @@ void AKart::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
 
+	if (MovementComponent == nullptr) return;
+
 	if (GetLocalRole() == ROLE_AutonomousProxy)
 	{
-		FKartMove Move = CreateMove(DeltaTime);
-		SimulateMove(Move);
+		FKartMove Move = MovementComponent->CreateMove(DeltaTime);
+		MovementComponent->SimulateMove(Move);
 			
 		UnacknowledgeMoves.Add(Move);
 		Server_SendMove(Move);
 	}
 	if (GetLocalRole() == ROLE_Authority && IsLocallyControlled())
 	{
-		FKartMove Move = CreateMove(DeltaTime);
+		FKartMove Move = MovementComponent->CreateMove(DeltaTime);
 		Server_SendMove(Move);
 	}
 
 	if (GetLocalRole() == ROLE_SimulatedProxy)
 	{
-		SimulateMove(ServerState.LastMove);
+		MovementComponent->SimulateMove(ServerState.LastMove);
 	}
 
 
@@ -83,43 +87,19 @@ void AKart::Tick(float DeltaTime)
 
 void AKart::OnRep_ServerState()
 {
+	if (MovementComponent == nullptr) return;
+
 	SetActorTransform(ServerState.Transform);
-	Velocity = ServerState.Velocity;
+	MovementComponent->SetVelocity(ServerState.Velocity);
 
 	ClearAcknowledgedMoves(ServerState.LastMove);
 
 	for (const FKartMove& Move : UnacknowledgeMoves)
 	{
-		SimulateMove(Move);
+		MovementComponent->SimulateMove(Move);
 	}
 }
 
-void AKart::SimulateMove(const FKartMove& Move)
-{
-	FVector Force = GetActorForwardVector() * MaxDrivingForce * Move.Throttle;
-	Force += GetAirResistance();
-	Force += GetRollingResistance();
-
-	FVector Acceleration = Force / Mass;
-
-	Velocity = Velocity + Acceleration * Move.DeltaTime;
-
-	ApplyRotation(Move.DeltaTime, Move.SteeringThrow);
-
-	UpdateLocationFromVelocity(Move.DeltaTime);
-}
-
-FKartMove AKart::CreateMove(float DeltaTime)
-{
-	FKartMove Move;
-	Move.DeltaTime = DeltaTime;
-	Move.SteeringThrow = SteeringThrow;
-	Move.Throttle = Throttle;
-	Move.Time = GetWorld()->TimeSeconds;
-	//Move.Time = GetWorld()->GetGameState()->GetServerWorldTimeSeconds();
-
-	return Move;
-}
 void AKart::ClearAcknowledgedMoves(FKartMove LastMove)
 {
 	TArray<FKartMove> NewMoves;
@@ -135,41 +115,7 @@ void AKart::ClearAcknowledgedMoves(FKartMove LastMove)
 	UnacknowledgeMoves = NewMoves;
 }
 
-FVector AKart::GetAirResistance()
-{
-	return (-Velocity.GetSafeNormal() * Velocity.SizeSquared() * DragCoefficient) ;
-}
 
-FVector AKart::GetRollingResistance()
-{
-	float AccelerationDueToGravity = -GetWorld()->GetGravityZ() / 100;
-	float NormalForce = Mass * AccelerationDueToGravity;
-	return (-Velocity.GetSafeNormal() * RollingResistenceCoefficient * NormalForce);
-}
-
-void AKart::ApplyRotation(float DeltaTime, float _SteeringThrow)
-{
-	float DeltaLocation = FVector::DotProduct(GetActorForwardVector(), Velocity) * DeltaTime;
-	float RotationAngle = DeltaLocation / MinTurningRadius * _SteeringThrow;
-
-	FQuat RotationDelta(GetActorUpVector(), RotationAngle);
-
-	Velocity = RotationDelta.RotateVector(Velocity);
-
-	AddActorWorldRotation(RotationDelta);
-}
-
-void AKart::UpdateLocationFromVelocity(float DeltaTime)
-{
-	FVector Translation = Velocity * 100 * DeltaTime;
-
-	FHitResult Hit;
-	AddActorWorldOffset(Translation, true, &Hit);
-	if (Hit.IsValidBlockingHit())
-	{
-		Velocity = FVector::ZeroVector;
-	}
-}
 
 // Called to bind functionality to input
 void AKart::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
@@ -183,22 +129,28 @@ void AKart::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
 
 void AKart::MoveForward(float value)
 {
-	Throttle = value;
+	if (MovementComponent == nullptr) return;
+
+	MovementComponent->SetThrottle(value);
 }
 
 void AKart::MoveRight(float value)
 {
-	SteeringThrow = value;
+	if (MovementComponent == nullptr) return;
+
+	MovementComponent->SetSteeringThrow(value);
 }
 
 
 void AKart::Server_SendMove_Implementation(FKartMove Move)
 {
-	SimulateMove(Move);
+	if (MovementComponent == nullptr) return;
+
+	MovementComponent->SimulateMove(Move);
 
 	ServerState.LastMove = Move;
 	ServerState.Transform = GetActorTransform();
-	ServerState.Velocity = Velocity;
+	ServerState.Velocity = MovementComponent->GetVelocity();
 
 }
 

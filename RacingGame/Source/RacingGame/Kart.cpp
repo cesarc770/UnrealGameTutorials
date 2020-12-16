@@ -5,8 +5,8 @@
 #include "Components/InputComponent.h"
 #include "Engine/World.h"
 #include "DrawDebugHelpers.h"
-#include "Net/UnrealNetwork.h"
 #include "GameFramework/GameStateBase.h"
+#include "Net/UnrealNetwork.h"
 
 // Sets default values
 AKart::AKart()
@@ -16,6 +16,7 @@ AKart::AKart()
 	bReplicates = true;
 
 	MovementComponent = CreateDefaultSubobject<UKartMovementComponent>(TEXT("MovementComponent"));
+	MovementReplicator = CreateDefaultSubobject<UKartMovementReplicator>(TEXT("MovementReplicator"));
 
 }
 
@@ -29,12 +30,6 @@ void AKart::BeginPlay()
 		NetUpdateFrequency = 1;
 	}
 	
-}
-
-void AKart::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
-{
-	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
-	DOREPLIFETIME(AKart, ServerState);
 }
 
 FString GetEnumText(ENetRole Role)
@@ -59,63 +54,9 @@ void AKart::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
 
-	if (MovementComponent == nullptr) return;
-
-	if (GetLocalRole() == ROLE_AutonomousProxy)
-	{
-		FKartMove Move = MovementComponent->CreateMove(DeltaTime);
-		MovementComponent->SimulateMove(Move);
-			
-		UnacknowledgeMoves.Add(Move);
-		Server_SendMove(Move);
-	}
-	if (GetLocalRole() == ROLE_Authority && IsLocallyControlled())
-	{
-		FKartMove Move = MovementComponent->CreateMove(DeltaTime);
-		Server_SendMove(Move);
-	}
-
-	if (GetLocalRole() == ROLE_SimulatedProxy)
-	{
-		MovementComponent->SimulateMove(ServerState.LastMove);
-	}
-
-
 	DrawDebugString(GetWorld(), FVector(0, 0, 100), GetEnumText(GetLocalRole()), this, FColor::White, DeltaTime);
 
 }
-
-void AKart::OnRep_ServerState()
-{
-	if (MovementComponent == nullptr) return;
-
-	SetActorTransform(ServerState.Transform);
-	MovementComponent->SetVelocity(ServerState.Velocity);
-
-	ClearAcknowledgedMoves(ServerState.LastMove);
-
-	for (const FKartMove& Move : UnacknowledgeMoves)
-	{
-		MovementComponent->SimulateMove(Move);
-	}
-}
-
-void AKart::ClearAcknowledgedMoves(FKartMove LastMove)
-{
-	TArray<FKartMove> NewMoves;
-
-	for (const FKartMove& Move : UnacknowledgeMoves)
-	{
-		if (Move.Time > LastMove.Time)
-		{
-			NewMoves.Add(Move);
-		}
-	}
-
-	UnacknowledgeMoves = NewMoves;
-}
-
-
 
 // Called to bind functionality to input
 void AKart::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
@@ -130,7 +71,7 @@ void AKart::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
 void AKart::MoveForward(float value)
 {
 	if (MovementComponent == nullptr) return;
-
+	
 	MovementComponent->SetThrottle(value);
 }
 
@@ -139,24 +80,6 @@ void AKart::MoveRight(float value)
 	if (MovementComponent == nullptr) return;
 
 	MovementComponent->SetSteeringThrow(value);
-}
-
-
-void AKart::Server_SendMove_Implementation(FKartMove Move)
-{
-	if (MovementComponent == nullptr) return;
-
-	MovementComponent->SimulateMove(Move);
-
-	ServerState.LastMove = Move;
-	ServerState.Transform = GetActorTransform();
-	ServerState.Velocity = MovementComponent->GetVelocity();
-
-}
-
-bool AKart::Server_SendMove_Validate(FKartMove Move)
-{
-	return true;
 }
 
 

@@ -5,24 +5,9 @@
 #include "CoreMinimal.h"
 #include "GameFramework/Pawn.h"
 #include "KartMovementComponent.h"
+#include "KartMovementReplicator.h"
 #include "Kart.generated.h"
 
-
-
-USTRUCT()
-struct FKartState
-{
-	GENERATED_USTRUCT_BODY()
-
-	UPROPERTY()
-	FTransform Transform;
-
-	UPROPERTY()
-	FVector Velocity;
-
-	UPROPERTY()
-	FKartMove LastMove;
-};
 
 UCLASS()
 class RACINGGAME_API AKart : public APawn
@@ -49,22 +34,9 @@ private:
 	void MoveForward(float value);
 	void MoveRight(float value);
 
-	UFUNCTION(Server, Reliable, WithValidation)
-	void Server_SendMove(FKartMove Move);
-
-	bool Server_SendMove_Validate(FKartMove Move);
-
-	void ClearAcknowledgedMoves(FKartMove LastMove);
-	
-	UPROPERTY(ReplicatedUsing = OnRep_ServerState)
-	FKartState ServerState;
-
-	UFUNCTION()
-	void OnRep_ServerState();
-
-	TArray<FKartMove> UnacknowledgeMoves;
-
 	UPROPERTY(EditAnywhere)
 	UKartMovementComponent* MovementComponent;
+	UPROPERTY(VisibleAnywhere)
+	UKartMovementReplicator* MovementReplicator;
 
 };

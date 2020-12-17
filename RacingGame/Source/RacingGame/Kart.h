@@ -18,6 +18,12 @@ public:
 	// Sets default values for this pawn's properties
 	AKart();
 
+	UPROPERTY(EditAnywhere, BlueprintReadOnly)
+	UKartMovementComponent* MovementComponent;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly)
+	UKartMovementReplicator* MovementReplicator;
+
 protected:
 	// Called when the game starts or when spawned
 	virtual void BeginPlay() override;
@@ -33,10 +39,5 @@ private:
 	
 	void MoveForward(float value);
 	void MoveRight(float value);
-
-	UPROPERTY(EditAnywhere)
-	UKartMovementComponent* MovementComponent;
-	UPROPERTY(VisibleAnywhere)
-	UKartMovementReplicator* MovementReplicator;
 
 };

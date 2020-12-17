@@ -68,5 +68,11 @@ private:
 	UPROPERTY()
 	UKartMovementComponent* MovementComponent;
 
+	UPROPERTY()
+	USceneComponent* MeshOffsetRoot;
+
+	UFUNCTION(BlueprintCallable)
+	void SetMEshOffsetRoot(USceneComponent* Root) { MeshOffsetRoot = Root; };
+
 		
 };

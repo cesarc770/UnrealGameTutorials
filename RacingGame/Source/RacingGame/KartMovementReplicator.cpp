@@ -33,26 +33,32 @@ void UKartMovementReplicator::TickComponent(float DeltaTime, ELevelTick TickType
 
 	if (MovementComponent == nullptr) return;
 
+	FKartMove Move = MovementComponent->GetLastMove();
+
 	if (GetOwnerRole() == ROLE_AutonomousProxy)
 	{
-		FKartMove Move = MovementComponent->CreateMove(DeltaTime);
-		MovementComponent->SimulateMove(Move);
 
 		UnacknowledgedMoves.Add(Move);
 		Server_SendMove(Move);
 	}
 
 	// We are the server and in control of the pawn.
-	if (GetOwnerRole() == ROLE_Authority && GetOwner()->GetRemoteRole() == ROLE_SimulatedProxy)
+	if (GetOwner()->GetRemoteRole() == ROLE_SimulatedProxy)
 	{
-		FKartMove Move = MovementComponent->CreateMove(DeltaTime);
-		Server_SendMove(Move);
+		UpdateServerState(Move);
 	}
 
 	if (GetOwnerRole() == ROLE_SimulatedProxy)
 	{
 		MovementComponent->SimulateMove(ServerState.LastMove);
 	}
+}
+
+void UKartMovementReplicator::UpdateServerState(const FKartMove& Move)
+{
+	ServerState.LastMove = Move;
+	ServerState.Tranform = GetOwner()->GetActorTransform();
+	ServerState.Velocity = MovementComponent->GetVelocity();
 }
 
 void UKartMovementReplicator::GetLifetimeReplicatedProps(TArray< FLifetimeProperty >& OutLifetimeProps) const
@@ -97,9 +103,7 @@ void UKartMovementReplicator::Server_SendMove_Implementation(FKartMove Move)
 
 	MovementComponent->SimulateMove(Move);
 
-	ServerState.LastMove = Move;
-	ServerState.Tranform = GetOwner()->GetActorTransform();
-	ServerState.Velocity = MovementComponent->GetVelocity();
+	UpdateServerState(Move);
 }
 
 bool UKartMovementReplicator::Server_SendMove_Validate(FKartMove Move)

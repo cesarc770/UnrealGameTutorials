@@ -41,6 +41,7 @@ public:
 
 private:
 	void ClearAcknowledgeMoves(FKartMove LastMove);
+	void UpdateServerState(const FKartMove& Move);
 
 	UFUNCTION(Server, Reliable, WithValidation)
 	void Server_SendMove(FKartMove Move);

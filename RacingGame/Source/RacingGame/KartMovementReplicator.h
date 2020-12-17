@@ -42,6 +42,7 @@ public:
 private:
 	void ClearAcknowledgeMoves(FKartMove LastMove);
 	void UpdateServerState(const FKartMove& Move);
+	void ClientTick(float DeltaTime);
 
 	UFUNCTION(Server, Reliable, WithValidation)
 	void Server_SendMove(FKartMove Move);
@@ -52,7 +53,16 @@ private:
 	UFUNCTION()
 	void OnRep_ServerState();
 
+
+	void AutonomousProxy_OnRep_ServerState();
+	void SimulatedProxy_OnRep_ServerState();
+
 	TArray<FKartMove> UnacknowledgedMoves;
+
+	float ClientTimeSinceUpdate;
+	float ClientTimeBetweenLastUpdate;
+	FVector ClientStartLocation;
+
 
 	UPROPERTY()
 	UKartMovementComponent* MovementComponent;

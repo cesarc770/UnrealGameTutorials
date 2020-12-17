@@ -66,17 +66,26 @@ void UKartMovementReplicator::ClientTick(float DeltaTime)
 	ClientTimeSinceUpdate += DeltaTime;
 
 	if (ClientTimeBetweenLastUpdate < KINDA_SMALL_NUMBER) return;
+	if (MovementComponent == nullptr) return;
 
 	FVector TargetLocation = ServerState.Tranform.GetLocation();
 	float LerpRatio = ClientTimeSinceUpdate / ClientTimeBetweenLastUpdate;
 	FVector StartLocation = ClientStartTransform.GetLocation();
+	float VelocityToDerivative = ClientTimeBetweenLastUpdate * 100;
+	FVector StartDerivative = ClientStartVelocity * VelocityToDerivative;
+	FVector TargetDerivative = ServerState.Velocity * VelocityToDerivative;
 
-	FVector NewLocation = FMath::LerpStable(StartLocation, TargetLocation, LerpRatio);
+	FVector NewLocation = FMath::CubicInterp(StartLocation, StartDerivative, TargetLocation, TargetDerivative, LerpRatio);
 
 	GetOwner()->SetActorLocation(NewLocation);
 
+	FVector NewDerivative = FMath::CubicInterpDerivative(StartLocation, StartDerivative, TargetLocation, TargetDerivative, LerpRatio);
+	FVector NewVelocity = NewDerivative / VelocityToDerivative;
+
+
 	FQuat TargetRotation = ServerState.Tranform.GetRotation();
 	FQuat StartRotation = ClientStartTransform.GetRotation();
+	MovementComponent->SetVelocity(NewVelocity);
 
 	FQuat NewRotation = FQuat::Slerp(StartRotation, TargetRotation, LerpRatio);
 
@@ -121,10 +130,13 @@ void UKartMovementReplicator::AutonomousProxy_OnRep_ServerState()
 
 void UKartMovementReplicator::SimulatedProxy_OnRep_ServerState()
 {
+	if (MovementComponent == nullptr) return;
+
 	ClientTimeBetweenLastUpdate = ClientTimeSinceUpdate;
 	ClientTimeSinceUpdate = 0;
 
 	ClientStartTransform = GetOwner()->GetActorTransform();
+	ClientStartVelocity = MovementComponent->GetVelocity();
 }
 
 void UKartMovementReplicator::ClearAcknowledgeMoves(FKartMove LastMove)
